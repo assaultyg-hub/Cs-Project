@@ -115,7 +115,6 @@ def checklogin(table,col_name,unique_value,passwd,msg,delete=True,login=True):
                 k-=1
 
 def userlogin():
-    global em
     print("\t1.===>Login In To Customer Account")
     print("\t2.===>Register A New User Account")
     print('='*55)
@@ -132,7 +131,7 @@ def userlogin():
             print("="*55)
             print("LOGIN SUCCESSFULL".center(55))
             print('='*55)
-            access.append('u')
+            access.extend(['u',em])
             return
         else:
             print("[LOGIN FAILED: User not found]".center(55,'='))
@@ -152,6 +151,10 @@ def useradd():
     while not em.endswith(".com"):
         em=input("Please Enter A Valid Email: ").lower()
     name=input("Please Enter Your Name: ").title()
+    cur.execute('select * from c_details where name=%s',(name,))
+    while cur.fetchone() is not None:
+        name = input("Please Try Another Name As That One Is Already Taken Up: ").title()
+        cur.execute('select * from c_details where name=%s', (name,))
     dis=input("Enter Your District: ").title()
     dis=check_district(dis)
     city=input("Enter The Major City/Town In Which U Live: ").title()
@@ -167,7 +170,7 @@ def useradd():
     return
 
 def user_term():
-    em='shailu.devam@gmail.com'
+    em=acces[1]
     cur.execute('select * from c_details where email=%s',(em,))
     details=cur.fetchone()
     print(f"Ok So What We Doing Today {details[0]}?")
@@ -197,16 +200,15 @@ def user_term():
         print("Lets Look At The Menu Now Shall We?")
         view_menu(hname,hid)
         c1=input("Enter The Serial Number Of The Food You Wish To Order: ")
-        while c1!='f':
-            if c1.isdigit():
-                menu=get_menu(hid)
+        menu=get_menu(hid)
+        while True:
+            if c1.isdigit() and 1<int(c1)<len(menu):
                 q=int(input(f"How Many {menu[int(c1)-1][0]} would u like: "))
                 cur.execute(f'insert into cart values %s'%((details[0],menu[int(c1)-1][0],menu[int(c1)-1][1],q),))
                 X.commit()
             elif c1=='c':
                 show_cart(details)
-            c1=input("Anything Else?(f to stop/c to check cart): ")
-            if c1=='f':
+            elif c1=='f':
                 cur.execute('Select SUM(price*quantity) from cart where customername=%s',(details[0],))
                 tp=cur.fetchone()[0]
                 show_cart(details)
@@ -221,24 +223,25 @@ def user_term():
                     X.commit()
                     print("Order Has Been Placed")
                     print("Approximate Waiting Time:45 mins")
-                    print("Returning To Main Terminal", end='')
-                    loadanimation()
-                    print('='*55)
-                    user_term()
-                    return
+                    break
                 elif c2=='a':
                     print("Lets Have A Look At The Menu Again Now Shall We?")
                     view_menu(hname,hid)
                     c1=input("What Other Item Would U Like: ")
+                    continue
                 else:
                     cur.execute("delete from cart where customername=%s",(details[0],))
                     X.commit()
                     print("Cart Has Been Cleared")
-                    print("Returning To Main Terminal",end='')
-                    loadanimation()
-                    print('=' * 55)
-                    user_term()
-                    return
+                    break
+            else:
+                print("It Seems You Have Made A Mistake. Please Try Again")
+            c1 = input("Anything Else?(f to stop/c to check cart): ")
+        print("Returning To Main Terminal", end='')
+        loadanimation()
+        print('=' * 55)
+        user_term()
+        return
 
     elif choice=='2':
         print('So Want To Update Some Details Huh?')
@@ -251,19 +254,20 @@ def user_term():
         choice2=input("Enter Your Choice(1/2/3): ")
         while choice2 not in ('1','2','3'):
             choice2=input("Please Enter A Valid Choice(1/2/3): ")
+
         if choice2=='1':
             print("Lets Change That Old Name Shall We?")
             cname=input('Enter Your New Name: ').title()
+            cur.execute('select * from c_details where name=%s', (cname,))
+            while cur.fetchone() is not None:
+                cname = input("Please Try Another Name As That One Is Already Taken Up: ").title()
+                cur.execute('select * from c_details where name=%s', (cname,))
             cur.execute('update c_details set name=%s where email=%s',(cname,details[3]))
             cur.execute('update cart set customername=%s where customername=%s', (cname, details[0]))
             cur.execute('update orders set customername=%s where customername=%s', (cname, details[0]))
             X.commit()
             print(f"Well Welcome {cname} Lets Get Going")
-            print("Returning to Terminal", end='')
-            loadanimation()
-            print('='*55)
-            user_term()
-            return
+
         elif choice2=='2':
             print("Moved Locations Huh? Well Lets Update That")
             dis=input("Enter Your New District:").title()
@@ -273,31 +277,28 @@ def user_term():
             cur.execute('update c_details set district=%s, city=%s where email=%s',(dis,city,details[3]))
             X.commit()
             print("Location Has Been Updated")
-            print('='*55)
-            print("Returning to Terminal",end='')
-            loadanimation()
-            print('='*55)
-            user_term()
-            return
+
         elif choice2=='3':
             print("Now That's A Big Change")
             pwd=input("Lets Confirm Your Password: ")
             if checklogin('c_details','email',em,pwd,"Well You Seem To Be An Intruder",False,False):
-                newem=input("Enter Your New Email Address: ").title()
+                newem=input("Enter Your New Email Address: ").lower()
                 pwd=input("Please Enter Your New Password: ")
                 cur.execute('update c_details set passwd=%s, email=%s where email=%s',(pwd,newem,em))
+                access[1]=newem
                 print("Lets Continue And Don't Forget Your Password")
                 X.commit()
-                print("Returning to Terminal", end='')
-                loadanimation()
-                print('=' * 55)
-                user_term()
-                return
             else:
                 print("Logging You Out")
                 returntologin(5)
                 login()
                 return
+        print('='*55)
+        print("Returning to Terminal", end='')
+        loadanimation()
+        print('=' * 55)
+        user_term()
+        return
 
     elif choice=='3':
         print("Alright Lets Check On That Order Shall We?")
@@ -316,7 +317,7 @@ def user_term():
             print(f"Your Order Costs {tp} and It's Current Status Is:'{status}'")
             if status=='Order Placed':
                 print("Estimated Time Of Arrival: 45 mins")
-            elif status=='Order Accepted':
+            elif status=='Preparing Food':
                 print("Estimated Time Of Arrival: 30 mins")
             elif status=='Out For Delivery':
                 print("Estimated Time Of Arrival: 15 mins")
@@ -350,7 +351,7 @@ def dellogin():
             print("="*55)
             print("LOGIN SUCCESSFULL".center(55))
             print('='*55)
-            access.append('d')
+            access.extend(['d',did])
             return
         else:
             print("[LOGIN FAILED: ID not found]".center(55,'='))
@@ -393,6 +394,167 @@ def deladd():
     returntologin(5)
     dellogin()
     return
+
+def del_term():
+    did='ABCDEF'
+    cur.execute("select * from d_details where D_ID=%s",(did,))
+    details=cur.fetchone()
+    print(f"Welcome {details[1]} Lets Start Earning and Delivering")
+    print('='*55)
+    print("Alright So What Would You Like To Do:")
+    print('\t1.--->Start Delivering')
+    print('\t2.--->Update Status To Receive Deliveries')
+    print('\t3.--->Update Details')
+    print("\t4.--->Log Out")
+    print('='*55)
+    c1=input("Please Enter Your Choice(1/2/3/4): ")
+    while c1 not in ('1','2','3','4'):
+        c1=input("Please Enter A Valid Choice(1/2/3/4): ")
+    if c1=='1':
+        while True:
+            cur.execute('select customername,h_id from delivery where d_id=%s',(did,))
+            orders=cur.fetchall()
+            if any(orders):
+                ord=[(i,*order) for i,order in enumerate(orders,start=1)]
+                print("This Is Your Current List Of Pending Deliveries:")
+                print(tab(ord,headers=['S.No','Customer_Name','Hotel_Name'],tablefmt='grid'))
+                print("Well Lets Go Through Them One By One")
+                print('='*55)
+                for i in ord:
+                    cur.execute('select * from h_details where h_id=%s',(i[2],))
+                    h_details=cur.fetchone()
+                    print(f"Current Order To Be Delivered Is From:{h_details[1]}, Located At:{h_details[3]}")
+                    print(f"This Is {i[1]}'s Order:")
+                    cur.execute('select food_items,quantity,price*quantity as Price from orders where customername=%s',(i[1],))
+                    cor=[(i,*value) for i,value in enumerate(cur.fetchall(),start=1)]
+                    print(tab(cor,headers=['s.No','Food_Name','Quantity','Price'],tablefmt='grid'))
+                    ans=input("Press y After You Have Picked Up The Delivery: ").lower()
+                    while ans!='y':
+                        ans = input("Press y After You Have Picked Up The Delivery: ").lower()
+                    print("Status Has Been Updated To Out For Delivery")
+                    cur.execute('update orders set status="Out For Delivery" where customername=%s',(i[1],))
+                    X.commit()
+                    ans = input("Press y After You Have Delivered The Food: ").lower()
+                    while ans != 'y':
+                        ans = input("Press y After You Have Delivered The Food: ").lower()
+                    print("Order Has Been Successfully Delivered")
+                    cur.excute("update d_details set tot_dels=tot_dels+1 where d_id=%s",(did,))
+                    cur.excute("update d_details set mon_dels=mon_dels+1 where d_id=%s", (did,))
+                    cur.execute("delete from orders where customername=%s",(i[1],))
+                    cur.execute('delete from delivery where customername=%s',(i[1],))
+                    ans=input("Press y To Move On To The Next Delivery(f To Return To Terminal): ").lower()
+                    if ans=='f':
+                        print('=' * 55)
+                        print("Returning to Terminal", end='')
+                        loadanimation()
+                        print('=' * 55)
+                        del_term()
+                        return
+            else:
+                print("It Seems That You Currently Dont Have Any Delivery Requests")
+                ans=input("Press y To Check Again(f To Return To Terminal): ").lower()
+                while ans not in ('y','f'):
+                    ans=input("Please Enter A Valid Choice(y/f): ")
+                if ans=='y':
+                    continue
+                else:
+                    print('=' * 55)
+                    print("Returning to Terminal", end='')
+                    loadanimation()
+                    print('=' * 55)
+                    del_term()
+                    return
+
+    elif c1=='2':
+        if details[4]=='n':
+            print("You Are Currently Unavailable to Receive Deliveries")
+            ans=input("Would You Like To Start Receiving Deliveries?(y/n): ").lower()
+            while ans not in ('y','n'):
+                print("Invalid Choice.Please Try Again")
+                ans = input("Would You Like To Start Receiving Deliveries?(y/n): ").lower()
+            if ans=='y':
+                cur.execute('update d_details set availability="y" where d_id=%s',(did,))
+                X.commit()
+                print("Status Updated Successfully")
+            else:
+                print("Well If That's What You Want Sure")
+        else:
+            print("You Are Currently Available To Receive Deliveries")
+            ans = input("Would You Like To Stop Receiving Deliveries?(y/n): ").lower()
+            while ans not in ('y', 'n'):
+                print("Invalid Choice.Please Try Again")
+                ans = input("Would You Like To Stop Receiving Deliveries?(y/n): ").lower()
+            if ans=='y':
+                cur.execute('update d_details set availability="n" where d_id=%s',(did,))
+                X.commit()
+                print("Status Updated Successfully")
+            else:
+                print("Well Lets Continue Delivering Then")
+        print('=' * 55)
+        print("Returning to Terminal", end='')
+        loadanimation()
+        print('=' * 55)
+        del_term()
+
+    elif c1=='3':
+        print('So Want To Change Some Details Huh?')
+        print('=' * 55)
+        print("But First What Do You Wish To Update")
+        print('\t1.--->Name')
+        print('\t2.--->Location')
+        print('\t3.--->Credentials')
+        print('=' * 55)
+        choice2 = input("Enter Your Choice(1/2/3): ")
+        while choice2 not in ('1', '2', '3'):
+            choice2 = input("Please Enter A Valid Choice(1/2/3): ")
+
+        if choice2 == '1':
+            print("Lets Change That Old Name Shall We?")
+            dname = input('Enter Your New Name: ').title()
+            cur.execute('update d_details set name=%s where d_id=%s', (dname, did))
+            X.commit()
+            print(f"Well Welcome {dname} Lets Get Going")
+
+        elif choice2 == '2':
+            print("Moved Locations Huh? Well Lets Update That")
+            dis = input("Enter Your New District:").title()
+            dis = check_district(dis)
+            city = input("Enter Your City:").title()
+            city = check_city(city)
+            cur.execute('update d_details set district=%s, city=%s where d_id=%s', (dis, city, did))
+            X.commit()
+            print("Location Has Been Updated")
+
+        elif choice2 == '3':
+            print("Now That's A Big Change")
+            pwd = input("Lets Confirm Your Password: ")
+            if checklogin('d_details', 'd_id', em, pwd, "Well You Seem To Be An Intruder", False, False):
+                print("This Is Your Delivery Id Just To Remember:")
+                print('='*55)
+                print(did.center(55))
+                print('='*55)
+                pwd = input("Please Enter Your New Password: ")
+                cur.execute('update c_details set passwd=%s where d_id=%s', (pwd, did))
+                print("Lets Continue And Don't Forget Your Password")
+                X.commit()
+            else:
+                print("Logging You Out")
+                returntologin(5)
+                login()
+                return
+        print('=' * 55)
+        print("Returning to Terminal", end='')
+        loadanimation()
+        print('=' * 55)
+        del_term()
+        return
+
+    elif c1=='4':
+        print("Well Hope To See You Again")
+        print("Logging Out")
+        loadanimation('■',5)
+        login()
+        return
     
 def hotellog():
     print("\t1.===>Login In To Hotel Account")
@@ -415,7 +577,7 @@ def hotellog():
             print("="*55)
             print("LOGIN SUCCESSFULL".center(55))
             print('='*55)
-            access.append('h')
+            access.extend(['h',hid])
             return
         else:
             print("[LOGIN FAILED: Hotel not found]".center(55,'='))
@@ -428,51 +590,57 @@ def hotellog():
         hoteladd()
     elif c2=='3':
         hname=input("Please Enter The Hotel Name That You Have Registered With: ").title()
-        cur.execute("select exists(select dis,city,approval from h_app where hname=%s)",(hname,))
-        if cur.fetchone()[0]==1:
-            cur.execute("select dis,city,approval from h_app where hname=%s",(hname,))
-            d=cur.fetchone()
-            if d[2] is None:
-                print("Its Seems Your Registrations Hasn't Been Reviewed Yet")
-                print("Please Try Later")
-                returntologin(5)
-                login()
-                return
-            elif d[2]=='y':
-                print("Its Seems Your Registrations Has Been Accepted!!!")
-                while True:
-                    l=[r.choice(al)]+r.choices(al+num,k=5)
-                    hid=''
-                    for i in l:
-                        hid+=i
-                    cur.execute('select * from h_cred where hotel_id=%s',('HTL-'+hid,))
-                    if cur.fetchone() is None:
-                        break
-                    else:
+        while True:
+            cur.execute("select exists(select dis,city,approval from h_app where hname=%s)",(hname,))
+            if cur.fetchone()[0]==1:
+                cur.execute("select dis,city,approval from h_app where hname=%s",(hname,))
+                d=cur.fetchone()
+                if d[2] is None:
+                    print("Its Seems Your Registrations Hasn't Been Reviewed Yet")
+                    ans = input("Press y To Check Again(f To Return To Login): ").lower()
+                    while ans not in ('y', 'f'):
+                        ans = input("Please Enter A Valid Choice(y/f): ")
+                    if ans=='y':
                         continue
+                    else:
+                        returntologin(5)
+                        login()
+                        return
+                elif d[2]=='y':
+                    print("Its Seems Your Registrations Has Been Accepted!!!")
+                    while True:
+                        l=[r.choice(al)]+r.choices(al+num,k=5)
+                        hid=''
+                        for i in l:
+                            hid+=i
+                        cur.execute('select * from h_cred where hotel_id=%s',('HTL-'+hid,))
+                        if cur.fetchone() is None:
+                            break
+                        else:
+                            continue
+                    print("="*55)
+                    print(f"Your Hotel ID is: {hid}".center(55))
+                    print("="*55)
+                    print("Dont Forget This ID. It Will Be Used For Logging In")
+                    pwd=input("Please Enter A STRONG Password For Your Account: ")
+                    cur.execute("insert into h_cred values(%s,%s)",('HTL-'+hid,pwd))
+                    cur.execute("insert into h_details values(%s,%s,%s,%s)",('HTL-'+hid,hname,d[0],d[1]))
+                    cur.execute("delete from h_app where hname=%s",(hname,))
+                    X.commit()
+                    print("[REGISTRATION SUCCESSFULL]".center(55,'='))
+                elif d[2]=='n':
+                    print("Sad To Be The Bearer Of Bad News But Your Registration Has Been Rejected")
+                    print("Try Again If You Would Like")
+                    cur.execute("delete from h_app where hname=%s",(hname,))
+                    returntologin(5)
+                    login()
+                    return
+            else:
                 print("="*55)
-                print(f"Your Hotel ID is: {hid}".center(55))
-                print("="*55)
-                print("Dont Forget This ID. It Will Be Used For Logging In")
-                pwd=input("Please Enter A STRONG Password For Your Account: ")
-                cur.execute("insert into h_cred values(%s,%s)",('HTL-'+hid,pwd))
-                cur.execute("insert into h_details values(%s,%s,%s,%s)",('HTL-'+hid,hname,d[0],d[1]))
-                cur.execute("delete from h_app where hname=%s",(hname,))
-                X.commit()  
-                print("[REGISTRATION SUCCESSFULL]".center(55,'='))
-            elif d[2]=='n':
-                print("Sad To Be The Bearer Of Bad News But Your Registration Has Been Rejected")
-                print("Try Again If You Would Like")
-                cur.execute("delete from h_app where hname=%s",(hname,))
-                returntologin(5)
-                login()
-                return
-        else:
-            print("="*55)
-            print("Invalid Hotel Name")
-            print("Maybe Try Again")
-            returntologin()
-            hotellog()
+                print("Invalid Hotel Name")
+                print("Maybe Try Again")
+                returntologin()
+                hotellog()
 
 def hoteladd():
     print("Please Be Patient Until Our Admins Review Your Registration")
@@ -488,6 +656,9 @@ def hoteladd():
     print("Please Check The Registration After An Admin Has Reviewed Your Registration")
     returntologin(5)
     hotellog()
+
+def hot_term():
+    print("Lets Get The Business Booming Shall We?")
            
 def alogin():
     aid=input("Please Enter Your Admin ID: ")
@@ -496,7 +667,7 @@ def alogin():
         print("="*55)
         print("LOGIN SUCCESSFULL".center(55))
         print('='*55)
-        access.append('a')
+        access.extend(['a',aid])
         return
     else:
         print('='*55)
@@ -550,7 +721,7 @@ def aterminal():
 
 def terminal():
     if any(access):
-        print("Loading Details.Please Stanby")
+        print("Loading Details.Please Standby")
         loadanimation('▰ ')
         print('='*55)
         if access[0]=='u':
@@ -597,10 +768,11 @@ def login():
 
 
 
-
+#orders(customername,food_items,price,quantity,h_id,status)
+#d_details(d_id,name,district,city,availability,Tot_dels,Mon_dels)
+#delivery(d_id,customername,h_id)
             
 
-
-user_term() #Delete em statement too
+del_term()
 #login()
 X.close() 
